@@ -7,16 +7,17 @@
 <style>
   :root { color-scheme: light; }
   * { box-sizing: border-box; }
-  body { margin: 0; height: 100dvh; display: flex; flex-direction: column;
+  body { margin: 0; height: 100dvh; overflow: hidden;
          font: 15px/1.45 system-ui, -apple-system, sans-serif; background: #f6f7f9; color: #1c2430; }
-  main { display: flex; flex-direction: column; height: 100%; width: 100%; max-width: 980px;
-         margin: 0 auto; padding: 20px 20px 12px; gap: 14px; }
-  #cfg { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  main { display: flex; height: 100%; gap: 18px; padding: 16px 18px; }
+  #cfg { width: 340px; flex: none; display: flex; flex-direction: column; gap: 14px; }
   #cfg label { font-weight: 600; font-size: 14px; display: flex; flex-direction: column; gap: 6px; }
   input { font: inherit; padding: 9px 12px; border: 1px solid #d4dae3; border-radius: 10px;
           background: #eef1f6; outline: none; min-width: 0; }
   input:focus { border-color: #8aa4c8; background: #fff; }
-  #chat { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 4px 2px; }
+  #right { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  #chat { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column;
+          gap: 8px; padding: 4px 2px; }
   .msg { max-width: 75%; padding: 8px 12px; border-radius: 12px; white-space: pre-wrap; overflow-wrap: break-word; }
   .msg.user { align-self: flex-end; background: #dce8f8; }
   .msg.assistant { align-self: flex-start; background: #fff; border: 1px solid #e2e7ee; }
@@ -30,7 +31,12 @@
   button:disabled { opacity: .5; cursor: default; }
   #reset { background: #e3e8f0; color: #33415a; }
   #reset:hover { background: #d4dbe8; }
-  @media (max-width: 700px) { .msg { max-width: 90%; } }
+  @media (max-width: 900px) {
+    main { flex-direction: column; overflow-y: auto; }
+    #cfg { width: auto; }
+    #chat { min-height: 300px; }
+    .msg { max-width: 90%; }
+  }
 </style>
 </head>
 <body>
@@ -42,12 +48,14 @@
     <label>Model context window<input id="ctx" type="number" min="1" list="hist-ctx" placeholder="Content window limit (eg: 4096)"><datalist id="hist-ctx"></datalist></label>
     <label>Max Tokens<input id="max" type="number" min="1" list="hist-max" placeholder="Max tokens per request (eg: 1024)"><datalist id="hist-max"></datalist></label>
   </section>
-  <section id="chat" aria-live="polite"></section>
-  <form id="send">
-    <input id="prompt" placeholder="Send a message…" autocomplete="off">
-    <button id="go" type="submit">Send</button>
-    <button id="reset" type="button" title="Clear conversation">Reset</button>
-  </form>
+  <div id="right">
+    <section id="chat" aria-live="polite"></section>
+    <form id="send">
+      <input id="prompt" placeholder="Send a message…" autocomplete="off">
+      <button id="go" type="submit">Send</button>
+      <button id="reset" type="button" title="Clear conversation">Reset</button>
+    </form>
+  </div>
 </main>
 <script>
 const $ = id => document.getElementById(id);
