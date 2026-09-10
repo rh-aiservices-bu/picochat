@@ -11,8 +11,8 @@
          font: 15px/1.45 system-ui, -apple-system, sans-serif; background: #f6f7f9; color: #1c2430; }
   main { display: flex; flex-direction: column; height: 100%; width: 100%; max-width: 980px;
          margin: 0 auto; padding: 20px 20px 12px; gap: 14px; }
-  #cfg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 18px; }
-  #cfg label { font-weight: 600; font-size: 14px; display: flex; column-gap: 6px; }
+  #cfg { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  #cfg label { font-weight: 600; font-size: 14px; display: flex; flex-direction: column; gap: 6px; }
   input { font: inherit; padding: 9px 12px; border: 1px solid #d4dae3; border-radius: 10px;
           background: #eef1f6; outline: none; min-width: 0; }
   input:focus { border-color: #8aa4c8; background: #fff; }
@@ -30,7 +30,7 @@
   button:disabled { opacity: .5; cursor: default; }
   #reset { background: #e3e8f0; color: #33415a; }
   #reset:hover { background: #d4dbe8; }
-  @media (max-width: 700px) { #cfg { grid-template-columns: 1fr; } .msg { max-width: 90%; } }
+  @media (max-width: 700px) { .msg { max-width: 90%; } }
 </style>
 </head>
 <body>

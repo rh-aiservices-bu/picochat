@@ -40,7 +40,7 @@ open index.html   # macOS; file:// works fine, no fetch cross-origin involved
 - **Vanilla JS, no framework** — element access via the `$` id shorthand (`$('chat')`), DOM built with `createElement`, no innerHTML with user data.
 - **Config object pattern** — `cfgEls` maps setting keys to inputs; adding a new setting means one entry in `cfgEls`, matching `<label><input list="hist-KEY">…<datalist id="hist-KEY">` markup, and nothing else — persistence and the history dropdown are wired in the one loop over `cfgEls`.
 - **Error handling** — one `try/catch` around the request in the submit handler; collect request diagnostics in a local `dbg` object (no secrets), surface a human-readable multi-line message in an error bubble, and mirror it to `console.error` with the stack. Never show the full API key anywhere.
-- **CSS** — minimal utility-ish classes, system font stack, `100dvh` flex column layout (config grid → scrollable chat → input form). Mobile: config collapses to one column under 700px.
+- **CSS** — minimal utility-ish classes, system font stack, `100dvh` flex column layout: full-width stacked config fields (one per row, sized to show ~80+ chars), scrollable chat, input form. Chat messages cap at 75% width (90% under 700px).
 - **Token math** — if you change `estTok`/`fit`, keep the invariant: never drop the newest message, and reserve the `max_tokens` budget before fitting history.
 
 ## Important Files
