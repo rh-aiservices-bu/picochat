@@ -6,7 +6,7 @@ picochat is a deliberately minimal, single-file web app: paste a base URL, API k
 ## Architecture & Data Flow
 Static HTML page, no backend of its own. All logic lives in one inline `<script>` in `index.html`:
 
-1. **Config** — 5 form fields (Base URL, API Key, Selected Model, Model context window, Max Tokens). Every keystroke persists all five to `localStorage` under key `picochat.cfg.v1`; fields rehydrate on load. The API key never leaves the browser (sent only as `Authorization: Bearer` to the user-chosen base URL).
+1. **Config** — 5 form fields (Base URL, API Key, Selected Model, Model context window, Max Tokens). Every keystroke persists all five to `localStorage` under key `picochat.cfg.v1`; fields rehydrate on load. Each field also has a native `<datalist>` dropdown of its recent values, stored under `picochat.hist.v1` as `{field: [value, …]}` (newest first, deduped, capped at 10). A value is recorded on commit (`change`, `blur`, or Enter in the field) — not per keystroke — so partial typing doesn't pollute history; restored values are re-seeded into history on load. The API key never leaves the browser (sent only as `Authorization: Bearer` to the user-chosen base URL).
 2. **Send** — on submit, the new user message is appended to `msgs` first, then the full history is passed through `fit()` (so the current prompt is always in the request), then POSTed to `{base}/chat/completions` with `stream: true`, `max_tokens` (only when set), and Bearer auth.
 3. **Stream** — `streamSSE()` reads the `res.body` ReadableStream, splits SSE lines, parses each `data:` JSON, and appends `choices[0].delta.content` deltas to a live DOM bubble until `data: [DONE]`.
 4. **Render** — messages are DOM divs (`.msg.user` / `.msg.assistant` / `.msg.error`) appended to `#chat`; Reset clears the DOM and `msgs` (config is untouched).
@@ -38,14 +38,13 @@ open index.html   # macOS; file:// works fine, no fetch cross-origin involved
 ## Code Conventions & Common Patterns
 - **Single file** — keep the app in `index.html`; do not introduce modules, bundlers, or dependencies. The file must remain usable by double-clicking.
 - **Vanilla JS, no framework** — element access via the `$` id shorthand (`$('chat')`), DOM built with `createElement`, no innerHTML with user data.
-- **Config object pattern** — `cfgEls` maps setting keys to inputs; adding a new setting means one entry in `cfgEls` plus matching `<label>` markup. Persistence is automatic for anything in `cfgEls`.
-- **Async** — `async/await` only; streaming via `fetch` + `ReadableStream.getReader()` (not `EventSource`, because the request is a POST).
+- **Config object pattern** — `cfgEls` maps setting keys to inputs; adding a new setting means one entry in `cfgEls`, matching `<label><input list="hist-KEY">…<datalist id="hist-KEY">` markup, and nothing else — persistence and the history dropdown are wired in the one loop over `cfgEls`.
 - **Error handling** — one `try/catch` around the request in the submit handler; collect request diagnostics in a local `dbg` object (no secrets), surface a human-readable multi-line message in an error bubble, and mirror it to `console.error` with the stack. Never show the full API key anywhere.
 - **CSS** — minimal utility-ish classes, system font stack, `100dvh` flex column layout (config grid → scrollable chat → input form). Mobile: config collapses to one column under 700px.
 - **Token math** — if you change `estTok`/`fit`, keep the invariant: never drop the newest message, and reserve the `max_tokens` budget before fitting history.
 
 ## Important Files
-- `index.html` — entry point and only source file. Key internals: `cfgEls` (settings), `msgs` (chat state), `fit()` (context truncation), `streamSSE()` (SSE parser), the `#send` submit handler (request pipeline).
+- `index.html` — entry point and only source file. Key internals: `cfgEls` (settings), `hist`/`remember()`/`renderList()` (per-field value history), `msgs` (chat state), `fit()` (context truncation), `streamSSE()` (SSE parser), the `#send` submit handler (request pipeline).
 
 ## Runtime/Tooling Preferences
 - **No runtime required** — pure static file; works from `file://` or any static server.
@@ -67,4 +66,4 @@ No test framework and no test files — this is a one-file app verified manually
   ```
 
   (A throwaway Node mock was used during development and deleted; recreate ad hoc when needed. It caches `index.html` at startup — **restart it after editing the app**, or it serves a stale copy.)
-- **Behaviors worth checking after any change** — streaming renders incrementally; context-window truncation drops oldest messages first (set a tiny window and send long messages repeatedly); bad credentials show an error bubble and the next send retries the queued message; Reset clears chat only, not config; localStorage round-trips all five settings.
+- **Behaviors worth checking after any change** — streaming renders incrementally; context-window truncation drops oldest messages first (set a tiny window and send long messages repeatedly); bad credentials show an error bubble and the next send retries the queued message; Reset clears chat only, not config; localStorage round-trips all five settings; each field's dropdown lists its recent values (newest first, deduped, max 10) and survives a reload.

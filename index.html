@@ -36,11 +36,11 @@
 <body>
 <main>
   <section id="cfg">
-    <label>Base URL<input id="base" placeholder="eg: https://proxy.openai.com/v1" autocomplete="off" spellcheck="false"></label>
-    <label>API Key<input id="key" type="password" placeholder="Generic service API Key" autocomplete="off"></label>
-    <label>Selected Model<input id="model" placeholder="Model id used for chat requests" spellcheck="false"></label>
-    <label>Model context window<input id="ctx" type="number" min="1" placeholder="Content window limit (eg: 4096)"></label>
-    <label>Max Tokens<input id="max" type="number" min="1" placeholder="Max tokens per request (eg: 1024)"></label>
+    <label>Base URL<input id="base" list="hist-base" placeholder="eg: https://proxy.openai.com/v1" autocomplete="off" spellcheck="false"><datalist id="hist-base"></datalist></label>
+    <label>API Key<input id="key" type="password" list="hist-key" placeholder="Generic service API Key" autocomplete="off"><datalist id="hist-key"></datalist></label>
+    <label>Selected Model<input id="model" list="hist-model" placeholder="Model id used for chat requests" spellcheck="false"><datalist id="hist-model"></datalist></label>
+    <label>Model context window<input id="ctx" type="number" min="1" list="hist-ctx" placeholder="Content window limit (eg: 4096)"><datalist id="hist-ctx"></datalist></label>
+    <label>Max Tokens<input id="max" type="number" min="1" list="hist-max" placeholder="Max tokens per request (eg: 1024)"><datalist id="hist-max"></datalist></label>
   </section>
   <section id="chat" aria-live="polite"></section>
   <form id="send">
@@ -54,17 +54,53 @@ const $ = id => document.getElementById(id);
 const cfgEls = { base: $('base'), key: $('key'), model: $('model'), ctx: $('ctx'), max: $('max') };
 const chat = $('chat'), prompt = $('prompt'), go = $('go');
 const STORE = 'picochat.cfg.v1';
+const HIST = 'picochat.hist.v1';
 
 // ---- settings: persisted to localStorage, sent fresh with every request ----
+let hist;   // {base: [...], key: [...], ...} — recent values per field, newest first
+try {
+  hist = JSON.parse(localStorage.getItem(HIST) || 'null') || {};
+  for (const k in cfgEls) if (!Array.isArray(hist[k])) hist[k] = [];
+} catch { hist = {}; }
+
+function renderList(k) {
+  const el = $('hist-' + k);
+  el.innerHTML = '';
+  for (const v of hist[k]) {
+    const o = document.createElement('option');
+    o.value = v;
+    el.appendChild(o);
+  }
+}
+
+// Record the final value of a field on commit (Enter, blur, or send) —
+// not on every keystroke, so partial typing doesn't pollute the history.
+function remember(k) {
+  const v = cfgEls[k].value.trim();
+  if (!v) return;
+  hist[k] = [v, ...hist[k].filter(x => x !== v)].slice(0, 10);
+  localStorage.setItem(HIST, JSON.stringify(hist));
+  renderList(k);
+}
+
 try {
   const saved = JSON.parse(localStorage.getItem(STORE) || 'null') || {};
-  for (const k in cfgEls) if (saved[k] != null) cfgEls[k].value = saved[k];
+  for (const k in cfgEls) {
+    if (saved[k] != null) cfgEls[k].value = saved[k];
+    remember(k); // seed history with restored values
+  }
 } catch {}
-for (const k in cfgEls) cfgEls[k].addEventListener('input', () => {
-  const o = {};
-  for (const f in cfgEls) o[f] = cfgEls[f].value;
-  localStorage.setItem(STORE, JSON.stringify(o));
-});
+for (const k in cfgEls) {
+  cfgEls[k].addEventListener('input', () => {
+    const o = {};
+    for (const f in cfgEls) o[f] = cfgEls[f].value;
+    localStorage.setItem(STORE, JSON.stringify(o));
+  });
+  cfgEls[k].addEventListener('change', () => remember(k));
+  cfgEls[k].addEventListener('blur', () => remember(k));
+  cfgEls[k].addEventListener('keydown', e => { if (e.key === 'Enter') remember(k); });
+  renderList(k);
+}
 
 // ---- chat state: stateless API, so the full history is re-sent each request ----
 let msgs = [];   // [{role, content}]
