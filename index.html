@@ -12,7 +12,7 @@
   main { display: flex; flex-direction: column; height: 100%; width: 100%; max-width: 980px;
          margin: 0 auto; padding: 20px 20px 12px; gap: 14px; }
   #cfg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 18px; }
-  #cfg label { font-weight: 600; font-size: 14px; display: flex; flex-direction: column; gap: 6px; }
+  #cfg label { font-weight: 600; font-size: 14px; display: flex; column-gap: 6px; }
   input { font: inherit; padding: 9px 12px; border: 1px solid #d4dae3; border-radius: 10px;
           background: #eef1f6; outline: none; min-width: 0; }
   input:focus { border-color: #8aa4c8; background: #fff; }
@@ -20,7 +20,8 @@
   .msg { max-width: 75%; padding: 8px 12px; border-radius: 12px; white-space: pre-wrap; overflow-wrap: break-word; }
   .msg.user { align-self: flex-end; background: #dce8f8; }
   .msg.assistant { align-self: flex-start; background: #fff; border: 1px solid #e2e7ee; }
-  .msg.error { align-self: center; background: #fde8e8; color: #9b1c1c; font-size: 14px; }
+  .msg.error { align-self: center; background: #fde8e8; color: #9b1c1c; font-size: 13px;
+               font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
   form { display: flex; gap: 8px; }
   #prompt { flex: 1; }
   button { font: inherit; font-weight: 600; padding: 9px 16px; border: none; border-radius: 10px;
@@ -95,13 +96,17 @@ function fit(history, ctx, max) {
 }
 
 // Reads an SSE stream: returns the full content, calling onDelta(full) per token.
+// Throws a descriptive error if the stream is malformed.
 async function streamSSE(res, onDelta) {
   const reader = res.body.getReader(), dec = new TextDecoder();
-  let buf = '', full = '';
+  let buf = '', full = '', seen = 0, dataLines = 0, head = '';
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
-    buf += dec.decode(value, { stream: true });
+    const chunk = dec.decode(value, { stream: true });
+    if (!head) head = chunk;
+    seen += value.byteLength;
+    buf += chunk;
     let nl;
     while ((nl = buf.indexOf('\n')) >= 0) {
       const line = buf.slice(0, nl).trim();
@@ -109,9 +114,21 @@ async function streamSSE(res, onDelta) {
       if (!line.startsWith('data:')) continue;
       const data = line.slice(5).trim();
       if (data === '[DONE]') return full;
-      const delta = JSON.parse(data).choices?.[0]?.delta?.content;
+      dataLines++;
+      let delta;
+      try {
+        delta = JSON.parse(data).choices?.[0]?.delta?.content;
+      } catch {
+        throw new Error(`malformed SSE after ${seen} bytes / ${dataLines} data lines: ${data.slice(0, 120)}`);
+      }
       if (delta) { full += delta; onDelta(full); }
     }
+  }
+  if (!full) {
+    throw new Error(
+      `no content received (stream ended: ${seen} bytes, ${dataLines} data line${dataLines === 1 ? '' : 's'})` +
+      ` — response head: ${head.replace(/\s+/g, ' ').slice(0, 160) || '(empty body)'}`
+    );
   }
   return full;
 }
@@ -127,35 +144,59 @@ $('send').addEventListener('submit', async e => {
   const max = +cfgEls.max.value || 0;
   if (!base || !key || !model) { addMsg('error', 'Base URL, API Key and Model are required.'); return; }
 
+  const url = base + '/chat/completions';
+
   busy = true; go.disabled = true;
   msgs.push({ role: 'user', content: text });
+  const sent = fit(msgs, ctx, max);
+  const body = { model, messages: sent, ...(max ? { max_tokens: max } : {}), stream: true };
   addMsg('user', text);
   prompt.value = '';
   const bubble = addMsg('assistant', '');
 
+  // Diagnostics kept for the failure bubble (never includes the full API key).
+  const dbg = {
+    url,
+    model,
+    history: msgs.length, sent: sent.length,
+    ctxWindow: ctx || null, maxTokens: max || null,
+    keyPrefix: key.length > 12 ? key.slice(0, 8) + '…' + key.slice(-4) : '(short key)',
+  };
+  console.log('[picochat] → POST', url, { ...dbg });
+
   try {
-    const res = await fetch(base + '/chat/completions', {
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
-      body: JSON.stringify({
-        model,
-        messages: fit(msgs, ctx, max),
-        ...(max ? { max_tokens: max } : {}),
-        stream: true,
-      }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) {
       let detail = '';
       try { detail = (await res.text()).slice(0, 400); } catch {}
+      dbg.status = res.status; dbg.statusText = res.statusText; dbg.contentType = res.headers.get('content-type');
+      console.error('[picochat] ← HTTP', res.status, res.statusText, detail);
       throw new Error(`HTTP ${res.status} ${res.statusText}${detail ? ' — ' + detail : ''}`);
     }
+    dbg.status = res.status; dbg.contentType = res.headers.get('content-type');
+    console.log('[picochat] ←', res.status, res.statusText, 'streaming');
     const full = await streamSSE(res, t => { bubble.textContent = t; scroll(); });
     bubble.textContent = full || '(empty response)';
     msgs.push({ role: 'assistant', content: full });
   } catch (err) {
     // Keep the user message in msgs so the next send retries it.
     bubble.remove();
-    addMsg('error', (err && err.message) || String(err));
+    const lines = ['Request failed: ' + ((err && err.message) || String(err))];
+    lines.push(
+      `→ POST ${dbg.url}`,
+      `  model: ${dbg.model}`,
+      `  history: ${dbg.history} msg${dbg.history === 1 ? '' : 's'} → sent: ${dbg.sent}`,
+      `  context window: ${dbg.ctxWindow}, max_tokens: ${dbg.maxTokens}`,
+      `  api key: ${dbg.keyPrefix}`,
+    );
+    if (dbg.status != null) lines.push(`← HTTP ${dbg.status} ${dbg.statusText}${dbg.contentType ? ' (' + dbg.contentType + ')' : ''}`);
+    if (err instanceof TypeError) lines.push('(fetch never resolved — usually network/CORS/DNS/TLS; check the base URL)');
+    console.error('[picochat] request failed', (err && err.stack) || String(err), dbg);
+    addMsg('error', lines.join('\n'));
   } finally {
     busy = false; go.disabled = false;
   }

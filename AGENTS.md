@@ -7,7 +7,7 @@ picochat is a deliberately minimal, single-file web app: paste a base URL, API k
 Static HTML page, no backend of its own. All logic lives in one inline `<script>` in `index.html`:
 
 1. **Config** — 5 form fields (Base URL, API Key, Selected Model, Model context window, Max Tokens). Every keystroke persists all five to `localStorage` under key `picochat.cfg.v1`; fields rehydrate on load. The API key never leaves the browser (sent only as `Authorization: Bearer` to the user-chosen base URL).
-2. **Send** — on submit, the full `msgs` history (`{role, content}[]`, kept in memory only, not persisted) is passed through `fit()`, then POSTed to `{base}/chat/completions` with `stream: true`, `max_tokens` (only when set), and Bearer auth.
+2. **Send** — on submit, the new user message is appended to `msgs` first, then the full history is passed through `fit()` (so the current prompt is always in the request), then POSTed to `{base}/chat/completions` with `stream: true`, `max_tokens` (only when set), and Bearer auth.
 3. **Stream** — `streamSSE()` reads the `res.body` ReadableStream, splits SSE lines, parses each `data:` JSON, and appends `choices[0].delta.content` deltas to a live DOM bubble until `data: [DONE]`.
 4. **Render** — messages are DOM divs (`.msg.user` / `.msg.assistant` / `.msg.error`) appended to `#chat`; Reset clears the DOM and `msgs` (config is untouched).
 
@@ -15,7 +15,7 @@ Key behavior to preserve when editing:
 
 - **Stateless API contract** — the server is never assumed to keep state; every request resends the entire message history.
 - **Context-window fitting** — `fit()` uses a heuristic token estimate (`4 + ceil(chars/4)` per message), reserves `max_tokens` of budget, and drops the *oldest* messages first, always keeping at least the newest. If the context-window field is empty, no truncation happens.
-- **Error path** — non-2xx or network failures show a `.msg.error` bubble with the server's error body (truncated to 400 chars); the user message stays in `msgs` so a retry re-sends it, and the failed assistant bubble is removed.
+- **Error path** — non-2xx, network, or malformed-stream failures show a multi-line `.msg.error` bubble: the error message plus a diagnostics block (request URL, model, history vs. sent counts, context window, max_tokens, key prefix, and status/content-type when a response arrived; a network/CORS hint for `TypeError: Failed to fetch`). Every request and failure is also logged to the console (`[picochat]` prefix, with `err.stack`). The full API key is never shown — only `first8…last4` (or `(short key)` if ≤12 chars). The user message stays in `msgs` so a retry re-sends it, and the failed assistant bubble is removed.
 - **Base URL convention** — the app appends exactly `/chat/completions` (trailing slashes stripped). Users paste the base *including* `/v1` (e.g. `https://api.openai.com/v1`).
 
 ## Key Directories
@@ -40,7 +40,7 @@ open index.html   # macOS; file:// works fine, no fetch cross-origin involved
 - **Vanilla JS, no framework** — element access via the `$` id shorthand (`$('chat')`), DOM built with `createElement`, no innerHTML with user data.
 - **Config object pattern** — `cfgEls` maps setting keys to inputs; adding a new setting means one entry in `cfgEls` plus matching `<label>` markup. Persistence is automatic for anything in `cfgEls`.
 - **Async** — `async/await` only; streaming via `fetch` + `ReadableStream.getReader()` (not `EventSource`, because the request is a POST).
-- **Error handling** — one `try/catch` around the request in the submit handler; surface human-readable text in an error bubble rather than throwing.
+- **Error handling** — one `try/catch` around the request in the submit handler; collect request diagnostics in a local `dbg` object (no secrets), surface a human-readable multi-line message in an error bubble, and mirror it to `console.error` with the stack. Never show the full API key anywhere.
 - **CSS** — minimal utility-ish classes, system font stack, `100dvh` flex column layout (config grid → scrollable chat → input form). Mobile: config collapses to one column under 700px.
 - **Token math** — if you change `estTok`/`fit`, keep the invariant: never drop the newest message, and reserve the `max_tokens` budget before fitting history.
 
@@ -66,5 +66,5 @@ No test framework and no test files — this is a one-file app verified manually
   data: [DONE]
   ```
 
-  (A throwaway Node mock was used during development and deleted; recreate ad hoc when needed.)
+  (A throwaway Node mock was used during development and deleted; recreate ad hoc when needed. It caches `index.html` at startup — **restart it after editing the app**, or it serves a stale copy.)
 - **Behaviors worth checking after any change** — streaming renders incrementally; context-window truncation drops oldest messages first (set a tiny window and send long messages repeatedly); bad credentials show an error bubble and the next send retries the queued message; Reset clears chat only, not config; localStorage round-trips all five settings.
