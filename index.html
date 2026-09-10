@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>picochat</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin: 0; height: 100dvh; display: flex; flex-direction: column;
+         font: 15px/1.45 system-ui, -apple-system, sans-serif; background: #f6f7f9; color: #1c2430; }
+  main { display: flex; flex-direction: column; height: 100%; width: 100%; max-width: 980px;
+         margin: 0 auto; padding: 20px 20px 12px; gap: 14px; }
+  #cfg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 18px; }
+  #cfg label { font-weight: 600; font-size: 14px; display: flex; flex-direction: column; gap: 6px; }
+  input { font: inherit; padding: 9px 12px; border: 1px solid #d4dae3; border-radius: 10px;
+          background: #eef1f6; outline: none; min-width: 0; }
+  input:focus { border-color: #8aa4c8; background: #fff; }
+  #chat { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 4px 2px; }
+  .msg { max-width: 75%; padding: 8px 12px; border-radius: 12px; white-space: pre-wrap; overflow-wrap: break-word; }
+  .msg.user { align-self: flex-end; background: #dce8f8; }
+  .msg.assistant { align-self: flex-start; background: #fff; border: 1px solid #e2e7ee; }
+  .msg.error { align-self: center; background: #fde8e8; color: #9b1c1c; font-size: 14px; }
+  form { display: flex; gap: 8px; }
+  #prompt { flex: 1; }
+  button { font: inherit; font-weight: 600; padding: 9px 16px; border: none; border-radius: 10px;
+           background: #35599b; color: #fff; cursor: pointer; }
+  button:hover { background: #2b4a82; }
+  button:disabled { opacity: .5; cursor: default; }
+  #reset { background: #e3e8f0; color: #33415a; }
+  #reset:hover { background: #d4dbe8; }
+  @media (max-width: 700px) { #cfg { grid-template-columns: 1fr; } .msg { max-width: 90%; } }
+</style>
+</head>
+<body>
+<main>
+  <section id="cfg">
+    <label>Base URL<input id="base" placeholder="eg: https://proxy.openai.com/v1" autocomplete="off" spellcheck="false"></label>
+    <label>API Key<input id="key" type="password" placeholder="Generic service API Key" autocomplete="off"></label>
+    <label>Selected Model<input id="model" placeholder="Model id used for chat requests" spellcheck="false"></label>
+    <label>Model context window<input id="ctx" type="number" min="1" placeholder="Content window limit (eg: 4096)"></label>
+    <label>Max Tokens<input id="max" type="number" min="1" placeholder="Max tokens per request (eg: 1024)"></label>
+  </section>
+  <section id="chat" aria-live="polite"></section>
+  <form id="send">
+    <input id="prompt" placeholder="Send a message…" autocomplete="off">
+    <button id="go" type="submit">Send</button>
+    <button id="reset" type="button" title="Clear conversation">Reset</button>
+  </form>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const cfgEls = { base: $('base'), key: $('key'), model: $('model'), ctx: $('ctx'), max: $('max') };
+const chat = $('chat'), prompt = $('prompt'), go = $('go');
+const STORE = 'picochat.cfg.v1';
+
+// ---- settings: persisted to localStorage, sent fresh with every request ----
+try {
+  const saved = JSON.parse(localStorage.getItem(STORE) || 'null') || {};
+  for (const k in cfgEls) if (saved[k] != null) cfgEls[k].value = saved[k];
+} catch {}
+for (const k in cfgEls) cfgEls[k].addEventListener('input', () => {
+  const o = {};
+  for (const f in cfgEls) o[f] = cfgEls[f].value;
+  localStorage.setItem(STORE, JSON.stringify(o));
+});
+
+// ---- chat state: stateless API, so the full history is re-sent each request ----
+let msgs = [];   // [{role, content}]
+let busy = false;
+
+function addMsg(role, text) {
+  const d = document.createElement('div');
+  d.className = 'msg ' + role;
+  d.textContent = text;
+  chat.appendChild(d);
+  chat.scrollTop = chat.scrollHeight;
+  return d;
+}
+function scroll() { chat.scrollTop = chat.scrollHeight; }
+
+$('reset').onclick = () => { if (!busy) { msgs = []; chat.innerHTML = ''; } };
+
+// Heuristic token estimate (~4 chars/token, +4 tokens/message overhead) used to
+// fit history into the configured context window. Drops oldest messages first,
+// keeps at least the newest one, reserves room for max_tokens.
+const estTok = m => 4 + Math.ceil(m.content.length / 4);
+function fit(history, ctx, max) {
+  if (!ctx) return history;
+  const budget = ctx - (max || 0);
+  const out = history.slice();
+  let used = out.reduce((s, m) => s + estTok(m), 0);
+  while (out.length > 1 && used > budget) { used -= estTok(out[0]); out.shift(); }
+  return out;
+}
+
+// Reads an SSE stream: returns the full content, calling onDelta(full) per token.
+async function streamSSE(res, onDelta) {
+  const reader = res.body.getReader(), dec = new TextDecoder();
+  let buf = '', full = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let nl;
+    while ((nl = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      if (!line.startsWith('data:')) continue;
+      const data = line.slice(5).trim();
+      if (data === '[DONE]') return full;
+      const delta = JSON.parse(data).choices?.[0]?.delta?.content;
+      if (delta) { full += delta; onDelta(full); }
+    }
+  }
+  return full;
+}
+
+$('send').addEventListener('submit', async e => {
+  e.preventDefault();
+  const text = prompt.value.trim();
+  if (busy || !text) return;
+  const base = cfgEls.base.value.trim().replace(/\/+$/, '');
+  const key = cfgEls.key.value.trim();
+  const model = cfgEls.model.value.trim();
+  const ctx = +cfgEls.ctx.value || 0;
+  const max = +cfgEls.max.value || 0;
+  if (!base || !key || !model) { addMsg('error', 'Base URL, API Key and Model are required.'); return; }
+
+  busy = true; go.disabled = true;
+  msgs.push({ role: 'user', content: text });
+  addMsg('user', text);
+  prompt.value = '';
+  const bubble = addMsg('assistant', '');
+
+  try {
+    const res = await fetch(base + '/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+      body: JSON.stringify({
+        model,
+        messages: fit(msgs, ctx, max),
+        ...(max ? { max_tokens: max } : {}),
+        stream: true,
+      }),
+    });
+    if (!res.ok) {
+      let detail = '';
+      try { detail = (await res.text()).slice(0, 400); } catch {}
+      throw new Error(`HTTP ${res.status} ${res.statusText}${detail ? ' — ' + detail : ''}`);
+    }
+    const full = await streamSSE(res, t => { bubble.textContent = t; scroll(); });
+    bubble.textContent = full || '(empty response)';
+    msgs.push({ role: 'assistant', content: full });
+  } catch (err) {
+    // Keep the user message in msgs so the next send retries it.
+    bubble.remove();
+    addMsg('error', (err && err.message) || String(err));
+  } finally {
+    busy = false; go.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
