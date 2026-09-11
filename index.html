@@ -5,35 +5,58 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>picochat</title>
 <style>
-  :root { color-scheme: light; }
+  :root { color-scheme: light; --ink: #182235; --muted: #6d7890; --line: #e4e9f2;
+           --panel: rgba(255,255,255,.86); --accent: #4f46e5; --accent-dark: #3730a3; }
   * { box-sizing: border-box; }
   body { margin: 0; height: 100dvh; overflow: hidden;
-         font: 15px/1.45 system-ui, -apple-system, sans-serif; background: #f6f7f9; color: #1c2430; }
-  main { display: flex; height: 100%; gap: 18px; padding: 16px 18px; }
-  #cfg { width: 340px; flex: none; display: flex; flex-direction: column; gap: 14px; }
-  #cfg label { font-weight: 600; font-size: 14px; display: flex; flex-direction: column; gap: 6px; }
+         font: 15px/1.45 system-ui, -apple-system, sans-serif; background: linear-gradient(135deg, #f5f7ff, #eef2ff 48%, #f8fafc); color: var(--ink); }
+  main { display: grid; grid-template-columns: minmax(290px, 340px) minmax(0, 1fr); height: 100%; gap: 20px; padding: 22px; }
+  #cfg, #right { min-height: 0; border: 1px solid rgba(211,219,235,.9); border-radius: 22px; box-shadow: 0 18px 45px rgba(52,67,112,.10); }
+  #cfg { display: flex; flex-direction: column; gap: 14px; padding: 22px; background: var(--panel); overflow-y: auto; }
+  .brand { display: flex; align-items: center; gap: 11px; padding-bottom: 8px; }
+  .logo { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 13px; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; font-weight: 800; font-size: 22px; box-shadow: 0 8px 18px rgba(79,70,229,.25); }
+  .brand h1 { margin: 0; font-size: 20px; letter-spacing: -.03em; }
+  .brand p { margin: 1px 0 0; color: var(--muted); font-size: 12px; }
+  .section-title { margin: 8px 0 0; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+  #cfg label { font-weight: 700; font-size: 12px; color: #44506a; display: flex; flex-direction: column; gap: 6px; }
   input { font: inherit; padding: 9px 12px; border: 1px solid #d4dae3; border-radius: 10px;
-          background: #eef1f6; outline: none; min-width: 0; }
-  input:focus { border-color: #8aa4c8; background: #fff; }
-  #right { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+          background: #f8faff; outline: none; min-width: 0; transition: border-color .15s, box-shadow .15s, background .15s; }
+  input:focus { border-color: #818cf8; background: #fff; box-shadow: 0 0 0 3px rgba(99,102,241,.12); }
+  select { width: 100%; font: inherit; padding: 9px 12px; border: 1px solid #d4dae3; border-radius: 10px; background: #f8faff; color: var(--ink); }
+  select:focus { border-color: #818cf8; outline: none; box-shadow: 0 0 0 3px rgba(99,102,241,.12); }
+  textarea { font: 12px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 10px;
+             border: 1px solid #d4dae3; border-radius: 12px; background: #f8faff; resize: vertical; }
+  textarea:focus { border-color: #818cf8; background: #fff; outline: none; box-shadow: 0 0 0 3px rgba(99,102,241,.12); }
+  #right { min-width: 0; display: flex; flex-direction: column; overflow: hidden; background: rgba(255,255,255,.9); }
+  .chat-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 24px 17px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.7); }
+  .chat-head h2 { margin: 0; font-size: 18px; letter-spacing: -.02em; }
+  .chat-head p { margin: 3px 0 0; color: var(--muted); font-size: 13px; }
+  .status { display: inline-flex; align-items: center; gap: 7px; padding: 7px 10px; border: 1px solid #dfe5f2; border-radius: 999px; color: #59657d; font-size: 12px; white-space: nowrap; }
+  .status::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,.13); }
   #chat { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column;
-          gap: 8px; padding: 4px 2px; }
-  .msg { max-width: 75%; padding: 8px 12px; border-radius: 12px; white-space: pre-wrap; overflow-wrap: break-word; }
-  .msg.user { align-self: flex-end; background: #dce8f8; }
-  .msg.assistant { align-self: flex-start; background: #fff; border: 1px solid #e2e7ee; }
+          gap: 12px; padding: 24px; background: #fbfcff; }
+  .msg { max-width: 75%; padding: 11px 14px; border-radius: 16px; white-space: pre-wrap; overflow-wrap: break-word; box-shadow: 0 5px 14px rgba(42,56,95,.05); }
+  .msg.user { align-self: flex-end; background: linear-gradient(135deg, #5b5ce2, #6366f1); color: #fff; border-bottom-right-radius: 5px; }
+  .msg.assistant { align-self: flex-start; background: #fff; border: 1px solid #e2e7ee; border-bottom-left-radius: 5px; }
   .msg.error { align-self: center; background: #fde8e8; color: #9b1c1c; font-size: 13px;
                font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-  form { display: flex; gap: 8px; }
-  #prompt { flex: 1; }
-  button { font: inherit; font-weight: 600; padding: 9px 16px; border: none; border-radius: 10px;
-           background: #35599b; color: #fff; cursor: pointer; }
-  button:hover { background: #2b4a82; }
+  form { display: flex; gap: 9px; padding: 15px 18px 18px; border-top: 1px solid var(--line); background: #fff; }
+  #prompt { flex: 1; padding: 11px 14px; border-radius: 13px; }
+  button { font: inherit; font-weight: 700; padding: 10px 15px; border: none; border-radius: 12px;
+           background: var(--accent); color: #fff; cursor: pointer; transition: background .15s, transform .15s; }
+  button:hover { background: var(--accent-dark); }
+  button:active { transform: translateY(1px); }
   button:disabled { opacity: .5; cursor: default; }
-  #reset { background: #e3e8f0; color: #33415a; }
-  #reset:hover { background: #d4dbe8; }
+  #reset, #curl { background: #eef1f8; color: #4b5873; }
+  #reset:hover, #curl:hover { background: #e3e7f1; }
+  .button-row { display: flex; gap: 8px; }
+  .button-row button { flex: 1; }
+  .preset-status { min-height: 18px; margin: -5px 0 0; color: var(--muted); font-size: 12px; }
   @media (max-width: 900px) {
-    main { flex-direction: column; overflow-y: auto; }
-    #cfg { width: auto; }
+    main { display: flex; flex-direction: column; overflow-y: auto; padding: 12px; }
+    #cfg { flex: none; }
+    .chat-head { padding: 16px 18px; }
+    #chat { padding: 18px; }
     #chat { min-height: 300px; }
     .msg { max-width: 90%; }
   }
@@ -42,13 +65,25 @@
 <body>
 <main>
   <section id="cfg">
+    <div class="brand"><div class="logo">p</div><div><h1>picochat</h1><p>Minimal chat for any compatible API</p></div></div>
+    <div class="section-title">Connection</div>
     <label>Base URL<input id="base" list="hist-base" placeholder="eg: https://proxy.openai.com/v1" autocomplete="off" spellcheck="false"><datalist id="hist-base"></datalist></label>
     <label>API Key<input id="key" type="password" list="hist-key" placeholder="Generic service API Key" autocomplete="off"><datalist id="hist-key"></datalist></label>
+    <div class="section-title">Model settings</div>
     <label>Selected Model<input id="model" list="hist-model" placeholder="Model id used for chat requests" spellcheck="false"><datalist id="hist-model"></datalist></label>
     <label>Model context window<input id="ctx" type="number" min="1" list="hist-ctx" placeholder="Content window limit (eg: 4096)"><datalist id="hist-ctx"></datalist></label>
     <label>Max Tokens<input id="max" type="number" min="1" list="hist-max" placeholder="Max tokens per request (eg: 1024)"><datalist id="hist-max"></datalist></label>
+    <div class="section-title">Presets</div>
+    <label>Preset name<input id="preset-name" placeholder="eg: Qwen production" autocomplete="off"></label>
+    <button id="save-preset" type="button">Save as preset</button>
+    <select id="preset-list" aria-label="Saved presets"><option value="">No presets saved</option></select>
+    <div class="button-row"><button id="load-preset" type="button" disabled>Load</button><button id="delete-preset" type="button" disabled>Delete</button></div>
+    <div id="preset-status" class="preset-status" aria-live="polite"></div>
+    <button id="curl" type="button" title="Generate a curl command from the current settings">Generate curl command</button>
+    <textarea id="curl-out" rows="7" readonly aria-label="Generated curl command" placeholder="The generated curl command will appear here"></textarea>
   </section>
   <div id="right">
+    <header class="chat-head"><div><h2>Chat</h2><p>Your messages are sent directly to the selected endpoint.</p></div><span class="status">Ready</span></header>
     <section id="chat" aria-live="polite"></section>
     <form id="send">
       <input id="prompt" placeholder="Send a message…" autocomplete="off">
@@ -63,6 +98,14 @@ const cfgEls = { base: $('base'), key: $('key'), model: $('model'), ctx: $('ctx'
 const chat = $('chat'), prompt = $('prompt'), go = $('go');
 const STORE = 'picochat.cfg.v1';
 const HIST = 'picochat.hist.v1';
+const PRESETS = 'picochat.presets.v1';
+
+let presets;
+try {
+  presets = JSON.parse(localStorage.getItem(PRESETS) || '[]');
+  if (!Array.isArray(presets)) presets = [];
+  presets = presets.filter(p => p && p.name && p.cfg && typeof p.cfg === 'object');
+} catch { presets = []; }
 
 // ---- settings: persisted to localStorage, sent fresh with every request ----
 let hist;   // {base: [...], key: [...], ...} — recent values per field, newest first
@@ -91,6 +134,12 @@ function remember(k) {
   renderList(k);
 }
 
+function persistCfg() {
+  const o = {};
+  for (const f in cfgEls) o[f] = cfgEls[f].value;
+  localStorage.setItem(STORE, JSON.stringify(o));
+}
+
 try {
   const saved = JSON.parse(localStorage.getItem(STORE) || 'null') || {};
   for (const k in cfgEls) {
@@ -100,15 +149,77 @@ try {
 } catch {}
 for (const k in cfgEls) {
   cfgEls[k].addEventListener('input', () => {
-    const o = {};
-    for (const f in cfgEls) o[f] = cfgEls[f].value;
-    localStorage.setItem(STORE, JSON.stringify(o));
+    persistCfg();
   });
   cfgEls[k].addEventListener('change', () => remember(k));
   cfgEls[k].addEventListener('blur', () => remember(k));
   cfgEls[k].addEventListener('keydown', e => { if (e.key === 'Enter') remember(k); });
   renderList(k);
 }
+
+function renderPresets() {
+  const list = $('preset-list');
+  list.innerHTML = '';
+  const empty = document.createElement('option');
+  empty.value = '';
+  empty.textContent = presets.length ? 'Select a saved preset' : 'No presets saved';
+  list.appendChild(empty);
+  for (const p of presets) {
+    const o = document.createElement('option');
+    o.value = p.name;
+    o.textContent = p.name;
+    list.appendChild(o);
+  }
+  const hasSelection = !!list.value;
+  $('load-preset').disabled = !hasSelection;
+  $('delete-preset').disabled = !hasSelection;
+}
+
+function selectedPreset() {
+  return presets.find(p => p.name === $('preset-list').value);
+}
+
+$('preset-list').addEventListener('change', () => {
+  const enabled = !!selectedPreset();
+  $('load-preset').disabled = !enabled;
+  $('delete-preset').disabled = !enabled;
+});
+
+$('save-preset').onclick = () => {
+  const name = $('preset-name').value.trim();
+  const status = $('preset-status');
+  if (!name) { status.textContent = 'Enter a preset name first.'; $('preset-name').focus(); return; }
+  const cfg = {};
+  for (const k in cfgEls) cfg[k] = cfgEls[k].value;
+  presets = [{ name, cfg }, ...presets.filter(p => p.name !== name)].slice(0, 20);
+  localStorage.setItem(PRESETS, JSON.stringify(presets));
+  renderPresets();
+  $('preset-list').value = name;
+  $('load-preset').disabled = false;
+  $('delete-preset').disabled = false;
+  $('preset-name').value = '';
+  status.textContent = `Saved “${name}”.`;
+};
+
+$('load-preset').onclick = () => {
+  const preset = selectedPreset();
+  if (!preset) return;
+  for (const k in cfgEls) if (preset.cfg[k] != null) cfgEls[k].value = preset.cfg[k];
+  persistCfg();
+  $('preset-status').textContent = `Loaded “${preset.name}”.`;
+};
+
+$('delete-preset').onclick = () => {
+  const preset = selectedPreset();
+  if (!preset) return;
+  presets = presets.filter(p => p.name !== preset.name);
+  localStorage.setItem(PRESETS, JSON.stringify(presets));
+  renderPresets();
+  $('preset-status').textContent = `Deleted “${preset.name}”.`;
+};
+renderPresets();
+
+if (!prompt.value) prompt.value = 'Explain what you can do and give me three example prompts.';
 
 // ---- chat state: stateless API, so the full history is re-sent each request ----
 let msgs = [];   // [{role, content}]
@@ -125,6 +236,31 @@ function addMsg(role, text) {
 function scroll() { chat.scrollTop = chat.scrollHeight; }
 
 $('reset').onclick = () => { if (!busy) { msgs = []; chat.innerHTML = ''; } };
+
+// Generate a portable shell command for reproducing the current request.
+function shellQuote(s) { return "'" + s.replaceAll("'", "'\\''") + "'"; }
+$('curl').onclick = () => {
+  const base = cfgEls.base.value.trim().replace(/\/+$/, '');
+  const key = cfgEls.key.value.trim();
+  const model = cfgEls.model.value.trim();
+  const ctx = +cfgEls.ctx.value || 0;
+  const max = +cfgEls.max.value || 0;
+  const text = prompt.value.trim();
+  const out = $('curl-out');
+  if (!base || !key || !model || !text) {
+    out.value = 'Fill in Base URL, API Key, Selected Model, and a prompt first.';
+    out.select();
+    return;
+  }
+  const history = msgs.concat({ role: 'user', content: text });
+  const sent = fit(history, ctx, max);
+  const body = { model, messages: sent, ...(max ? { max_tokens: max } : {}) };
+  out.value = 'curl -X POST ' + shellQuote(base + '/chat/completions') +
+    ' \\\n  -H ' + shellQuote('Authorization: Bearer ' + key) +
+    ' \\\n  -H ' + shellQuote('Content-Type: application/json') +
+    ' \\\n  -d ' + shellQuote(JSON.stringify(body, null, 2));
+  out.select();
+};
 
 // Heuristic token estimate (~4 chars/token, +4 tokens/message overhead) used to
 // fit history into the configured context window. Drops oldest messages first,
