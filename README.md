@@ -34,6 +34,8 @@ Responsive narrow layout for smaller screens:
 
 ![picochat responsive layout](screenshots/picochat-mobile.png)
 
+The settings panel includes a bottom-aligned attribution for the red.ht/cai team and a link to the [picochat source repository](https://github.com/rh-aiservices-bu/picochat).
+
 ## Configure a connection
 
 Fill in the left-hand panel:

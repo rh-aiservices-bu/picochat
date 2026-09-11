@@ -1,6 +1,6 @@
 # Backlog
 
-- Make the left panel resizable.
+- [x] Make the left panel resizable.
 - Add a Stop button to cancel an in-progress streamed response.
 - Add Retry for failed assistant requests.
 - Export and import conversations as JSON or Markdown.
@@ -16,4 +16,5 @@
 - Support non-streaming responses as a fallback.
 - Add optional conversation persistence, disabled by default for privacy.
 - Add a Copy button for the generated curl command.
-- Make the “Generate curl command” section foldable.
+- [x] Make the “Generate curl command” section foldable.
+- [x] Add bottom-aligned app attribution and source link.
