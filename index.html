@@ -52,8 +52,18 @@
   .button-row { display: flex; gap: 8px; }
   .button-row button { flex: 1; }
   .preset-status { min-height: 18px; margin: -5px 0 0; color: var(--muted); font-size: 12px; }
+  #save-preset { background: #eef1f8; color: #4b5873; padding: 8px 12px; }
+  #save-preset:hover { background: #e3e7f1; }
+  #preset-list { padding: 8px 10px; }
+  details.collapsible { margin-top: 2px; }
+  details.collapsible summary { cursor: pointer; list-style: none; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+  details.collapsible summary::-webkit-details-marker { display: none; }
+  details.collapsible summary::before { content: '+'; display: inline-block; width: 16px; color: var(--accent); font-size: 16px; letter-spacing: 0; line-height: 10px; vertical-align: -1px; }
+  details.collapsible[open] summary::before { content: '−'; }
+  .collapsible-body { display: grid; gap: 14px; margin-top: 12px; }
   .privacy-note { margin-top: auto; padding: 12px 13px; border: 1px solid #e0e5f1; border-radius: 12px; background: #f7f8ff; color: #59657d; font-size: 12px; }
-  .privacy-note strong { color: #44506a; }
+  .privacy-note summary { color: #44506a !important; letter-spacing: 0 !important; font-size: 12px !important; }
+  .privacy-note .collapsible-body { display: block; margin-top: 10px; line-height: 1.5; }
   @media (max-width: 900px) {
     main { display: flex; flex-direction: column; overflow-y: auto; padding: 12px; }
     #cfg { flex: none; }
@@ -68,6 +78,16 @@
 <main>
   <section id="cfg">
     <div class="brand"><div class="logo">p</div><div><h1>picochat</h1><p>Minimal chat for any compatible API</p></div></div>
+    <details class="collapsible">
+      <summary>Presets</summary>
+      <div class="collapsible-body">
+        <label>Preset name<input id="preset-name" placeholder="eg: Qwen production" autocomplete="off"></label>
+        <button id="save-preset" type="button">Save as preset</button>
+        <select id="preset-list" aria-label="Saved presets"><option value="">No presets saved</option></select>
+        <div class="button-row"><button id="load-preset" type="button" disabled>Load</button><button id="delete-preset" type="button" disabled>Delete</button></div>
+        <div id="preset-status" class="preset-status" aria-live="polite"></div>
+      </div>
+    </details>
     <div class="section-title">Connection</div>
     <label>Base URL<input id="base" list="hist-base" placeholder="eg: https://proxy.openai.com/v1" autocomplete="off" spellcheck="false"><datalist id="hist-base"></datalist></label>
     <label>API Key<input id="key" type="password" list="hist-key" placeholder="Generic service API Key" autocomplete="off"><datalist id="hist-key"></datalist></label>
@@ -75,18 +95,14 @@
     <label>Selected Model<input id="model" list="hist-model" placeholder="Model id used for chat requests" spellcheck="false"><datalist id="hist-model"></datalist></label>
     <label>Model context window<input id="ctx" type="number" min="1" list="hist-ctx" placeholder="Content window limit (eg: 4096)"><datalist id="hist-ctx"></datalist></label>
     <label>Max Tokens<input id="max" type="number" min="1" list="hist-max" placeholder="Max tokens per request (eg: 1024)"><datalist id="hist-max"></datalist></label>
-    <div class="section-title">Presets</div>
-    <label>Preset name<input id="preset-name" placeholder="eg: Qwen production" autocomplete="off"></label>
-    <button id="save-preset" type="button">Save as preset</button>
-    <select id="preset-list" aria-label="Saved presets"><option value="">No presets saved</option></select>
-    <div class="button-row"><button id="load-preset" type="button" disabled>Load</button><button id="delete-preset" type="button" disabled>Delete</button></div>
-    <div id="preset-status" class="preset-status" aria-live="polite"></div>
     <button id="curl" type="button" title="Generate a curl command from the current settings">Generate curl command</button>
     <textarea id="curl-out" rows="7" readonly aria-label="Generated curl command" placeholder="The generated curl command will appear here"></textarea>
-    <div class="privacy-note">
-      <strong>Privacy &amp; storage</strong><br>
-      picochat has no backend: your messages and responses stay in this browser's memory and are cleared when the page is reloaded. Connection settings, API keys, recent values, and presets are saved only in this browser's local storage. When you send a message, the conversation and API key go directly to the endpoint you entered; that service's own privacy and retention rules still apply. Avoid using picochat on a shared or untrusted browser.
-    </div>
+    <details class="collapsible privacy-note">
+      <summary>Privacy &amp; storage</summary>
+      <div class="collapsible-body">
+        picochat has no backend: your messages and responses stay in this browser's memory and are cleared when the page is reloaded. Connection settings, API keys, recent values, and presets are saved only in this browser's local storage. When you send a message, the conversation and API key go directly to the endpoint you entered; that service's own privacy and retention rules still apply. Avoid using picochat on a shared or untrusted browser. You can also download this <code>index.html</code> file and open it locally if you prefer not to use a hosted copy.
+      </div>
+    </details>
   </section>
   <div id="right">
     <header class="chat-head"><div><h2>Chat</h2><p>Your messages are sent directly to the selected endpoint.</p></div><span class="status">Ready</span></header>
